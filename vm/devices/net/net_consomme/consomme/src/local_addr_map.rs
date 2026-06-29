@@ -26,9 +26,9 @@ pub(crate) struct LocalAddrMap {
     /// assigned from the low end. Capped at /24 as there should only be a max of four
     /// addresses used (guest IP, gateway IP, virtual IP for guest IP and virtual IP for 127.0.0.1).
     next_ipv4_offset_from_end: u8,
-    /// Next available IPv6 interface ID suffix for link-local virtual addresses.
-    /// We allocate fe80::ff:fe00:NNNN addresses (using a range unlikely to
-    /// collide with EUI-64 derived addresses).
+    /// Next available IPv6 interface ID suffix for virtual addresses. We allocate
+    /// 2001:abcd::ff:fe00:NNNN addresses (using a range unlikely to collide with
+    /// EUI-64 derived addresses).
     next_ipv6_id: u16,
 }
 
@@ -118,12 +118,11 @@ impl LocalAddrMap {
         }
     }
 
-    /// Look up or allocate a virtual IPv6 link-local address for the given real
-    /// address.
+    /// Look up or allocate a virtual IPv6 address for the given real address.
     ///
-    /// Allocates from the `fe80::ff:fe00:NNNN:1` range which is distinct from
-    /// EUI-64 derived addresses (those use `0xFFFE` in bytes 11-12 rather than
-    /// `0x00FF:FE00` in bytes 10-13).
+    /// Allocates from the `2001:abcd::ff:fe00:NNNN:1` range (consomme's advertised
+    /// prefix) which is distinct from EUI-64 derived addresses (those use `0xFFFE`
+    /// in bytes 11-12 rather than `0x00FF:FE00`).
     pub fn get_or_allocate_v6(
         &mut self,
         real_addr: Ipv6Addr,
@@ -143,15 +142,15 @@ impl LocalAddrMap {
             if self.next_ipv6_id == 0 {
                 return None;
             }
-            // Build fe80::ff:fe00:NNNN:1
+            // Build 2001:abcd::ff:fe00:NNNN:1
             let id = self.next_ipv6_id;
             self.next_ipv6_id = self.next_ipv6_id.checked_add(1).unwrap_or(0);
 
             let octets: [u8; 16] = [
-                0xfe,
-                0x80,
-                0x00,
-                0x00,
+                0x20,
+                0x01,
+                0xab,
+                0xcd,
                 0x00,
                 0x00,
                 0x00,
@@ -276,8 +275,8 @@ mod tests {
         let addr = map
             .get_or_allocate_v6(Ipv6Addr::LOCALHOST, gateway_ll, None, None)
             .unwrap();
-        // Should be fe80::00ff:fe00:0001:0001
-        let expected = Ipv6Addr::new(0xfe80, 0, 0, 0, 0x00ff, 0xfe00, 0x0001, 0x0001);
+        // Should be 2001:abcd::00ff:fe00:0001:0001
+        let expected = Ipv6Addr::new(0x2001, 0xabcd, 0, 0, 0x00ff, 0xfe00, 0x0001, 0x0001);
         assert_eq!(addr, expected);
     }
 }
